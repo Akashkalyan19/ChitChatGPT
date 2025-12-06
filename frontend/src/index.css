@@ -1,0 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Comfortaa:wght@300&family=Fredoka:wght@300..700&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Passion+One:wght@700;900&family=Quicksand:wght@400;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.text-cus-grad{
+  @apply bg-custom-gradient bg-clip-text text-transparent;
+}

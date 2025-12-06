@@ -1,0 +1,73 @@
+-- 1. Users table
+CREATE TABLE users (
+  userid       SERIAL PRIMARY KEY,
+  name         VARCHAR(255) NOT NULL,
+  username     VARCHAR(100) NOT NULL UNIQUE,
+  password     VARCHAR(255) NOT NULL,         -- hashed password
+  created_at   TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  last_active  TIMESTAMP WITH TIME ZONE
+);
+
+-- 2. Rooms table
+CREATE TABLE rooms (
+  roomid       SERIAL PRIMARY KEY,
+  name         VARCHAR(255) NOT NULL UNIQUE,
+  description  TEXT,
+  is_private   BOOLEAN DEFAULT FALSE,
+  created_at   TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  created_by   INTEGER REFERENCES users(userid) ON DELETE SET NULL
+);
+
+-- 3. Members (join table for users <> rooms)
+CREATE TABLE members (
+  memberid     SERIAL PRIMARY KEY,
+  userid       INTEGER NOT NULL REFERENCES users(userid) ON DELETE CASCADE,
+  roomid       INTEGER NOT NULL REFERENCES rooms(roomid) ON DELETE CASCADE,
+  role         VARCHAR(50) DEFAULT 'member',  -- e.g., owner, admin, member
+  joined_at    TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  UNIQUE (userid, roomid)
+);
+
+-- 4. Chats table (persistent chat history)
+CREATE TABLE chats (
+  chatid       SERIAL PRIMARY KEY,
+  roomid       INTEGER NOT NULL REFERENCES rooms(roomid) ON DELETE CASCADE,
+  userid       INTEGER REFERENCES users(userid) ON DELETE SET NULL,
+  username     VARCHAR(100) NOT NULL,         -- denormalized for historical accuracy
+  usertype     VARCHAR(50) DEFAULT 'user',    -- e.g., 'user' / 'bot' / 'system'
+  message      TEXT NOT NULL,
+  metadata     JSONB,                         -- optional: attachments, reply_to, etc.
+  created_at   TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- 5. Optional: store WebRTC signaling or call sessions (if needed)
+CREATE TABLE calls (
+  callid       SERIAL PRIMARY KEY,
+  roomid       INTEGER REFERENCES rooms(roomid) ON DELETE CASCADE,
+  started_by   INTEGER REFERENCES users(userid) ON DELETE SET NULL,
+  sdp_offer    TEXT,
+  sdp_answer   TEXT,
+  ice_candidates JSONB,
+  status       VARCHAR(50) DEFAULT 'active',  -- active / ended
+  created_at   TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  ended_at     TIMESTAMP WITH TIME ZONE
+);
+
+-- Indexes to speed common queries
+CREATE INDEX idx_chats_room_createdat ON chats(roomid, created_at DESC);
+CREATE INDEX idx_members_room ON members(roomid);
+CREATE INDEX idx_users_username ON users(username);
+
+-- Example constraint: keep username lowercase
+CREATE FUNCTION lower_username() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.username := lower(NEW.username);
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER tr_lower_username BEFORE INSERT OR UPDATE ON users
+FOR EACH ROW EXECUTE FUNCTION lower_username();
+
+ALTER TABLE users
+ADD COLUMN roomid INTEGER REFERENCES rooms(roomid);
